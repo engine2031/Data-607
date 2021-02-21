@@ -1,0 +1,54 @@
+---
+title: "Data 607_Week 3 HW_ER"
+author: "Euclides Rodriguez"
+date: "2/20/2021"
+output: html_document
+---
+```{r include=FALSE}
+library(tidyverse)
+```
+  
+#### Week 3 Excercise 1 
+Filtering a data frame:
+
+```{r}
+df <- read.csv('https://raw.githubusercontent.com/fivethirtyeight/data/master/college-majors/majors-list.csv')
+
+df %>% 
+  filter(str_detect(Major, "DATA|STATISTICS"))
+```
+
+  
+#### Week 3 Excercise 2 
+Combining a string:
+```{r}
+str_c(c("bell pepper","bilberry","blackberry","blood orange","blueberry","cantaloupe","chili pepper","cloudberry", "olive","salal berry"), collapse=", ")
+
+```
+
+  
+#### Week 3 Excercise 3
+Describe the following expressions in words:<p>
+* (.)\1\1<br />
+<p style="color:blue"> One character followed by 2 matching characters<p>  
+* "(.)(.)\\\2\\\1"<br />
+<p style="color:blue"> Double back slash indicates for use with str_view. Two single character group followed by matching of 2nd group letter followed by last character matching the 1st<p>  
+* (..)\1<br />
+<p style="color:blue"> Two character group followed by identical two character.<p>  
+* "(.).\\\1.\\\1"<br />
+<p style="color:blue"> Double back slash indicates for use with str_view. One single character group, followed any character followed by 1st group letter follow by any letter followed by first group letter.<p>  
+* "(.)(.)(.).*\\\3\\\2\\\1"<br />
+<p style="color:blue"> Double back slash indicates for use with str_view. Three single character groups followed by any character followed by matching of third group letter followed bye 2nd group letter followed by 1st group letter.<p>  
+
+  
+#### Week 3 Excercise 4 
+Construct regular expressions to match words that:<p>
+* Start and end with the same character.<br />
+<p style="color:blue"> (.).*\1<p>
+
+* Contain a repeated pair of letters (e.g. "church" contains "ch" repeated twice.)<br />
+<p style="color:blue">(..).*\1<p>
+* Contain one letter repeated in at least three places eleven" contains three "e"s.)<br />
+<p style="color:blue">(.).\*\1.\*\1<p>
+
+
