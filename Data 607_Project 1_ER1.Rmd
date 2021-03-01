@@ -1,0 +1,89 @@
+---
+title: "Data 607_Project 1_ER"
+author: "Euclides Rodriguez"
+date: "2/28/2021"
+output: html_document
+---
+
+First chunk loaded the necessary libraries.
+```{r}
+library(readr)
+library(dplyr)
+library(tidyverse)
+```
+
+
+Used the read_delim function to import the tournament info first.  At first, I had difficulty importing the text files without adjusting the attributes.  The header within the text file did not allow read_delim to break up the text into its appropriate column.  By using the skip attribute I was able to skip the header and resolve this issue.  Next after reading through the r documentation I made use of the comment attribute.  This attribute allows you to designate a character and assign that text as a comment.  When first attempting to used this attribute, I used '-' which got rid of all the dash lines.  Unexpected outcome was that it also removed '->' in the ratings column.  In order to resolve this I adjusted the attribute to read double dashes. 
+```{r}
+df<-read_delim("https://raw.githubusercontent.com/engine2031/Data-607/main/tournamentinfo.txt",delim="|", 
+               col_names = c("Player State", "Player Name", "Total Pts", 
+                             "X1", "X2", "X3", "X4", "X5", "X6", "X7", "X8", "X9"),
+               skip=4, comment = "--")
+
+```
+
+In this chunk I create a new data frame to only work with the columns that will be used for the final product. Additionally within the total points column I got rid of unnecessary text "N:(.)" using reg expressions.
+```{r}
+df1 <- df %>% select(`Player State`,`Player Name`,`Total Pts`)
+df1$`Total Pts`<- str_remove(df1$`Total Pts`,"N:(.)")
+```
+
+The column 'Player Name' included text having the player's name and its rating.  I separated these two types of characters using the separate function.  Next for the 'Player Name1' and 'Player State' columns I get rid of the numbers.  
+```{r}
+df2 <-df1 %>% mutate(df1, separate(df1,col = "Player Name", into = c("Player Name1", "Rating"), sep="/"))
+
+df2$`Player Name1` <- str_remove(df2$`Player Name1`,"\\d+")
+df2$`Player State` <- str_remove(df2$`Player State`,"\\d+")
+
+df3 <- df2 %>% select(-'Player Name')
+```
+
+
+General preperation for the final production.  In this chunk I get rid of the spaces within each column. 
+```{r}
+df3$'Player Name1' <- str_trim(df3$`Player Name1`, side = c("both"))
+df3$'Player State' <- str_trim(df3$`Player State`, side = c("both"))
+df3$'Total Pts' <- str_trim(df3$`Total Pts`, side = c("both"))
+
+```
+
+
+Because of the way the initial text file was set up, there is blank data for some of the values within the columns.  In order to prep the data frame to drop these empty variable, I replace the spaces with NA.  My intent was to use the drop_na() function with brute force but I found that I lost data when applying the function to the entire data frame.  NA values were alternating depending on which column they were in.  I subsetted the columns so that the NA values were in the same row.  Then finally using cbind to merge the two subsets to create the complete dataframe. 
+```{r}
+
+df3 <- df3 %>% na_if("")
+df3_drop1 <- df3 %>% select(-'Player State',-'Rating') %>% drop_na()
+
+
+df3_drop2 <- df3 %>% select(-'Total Pts',-'Player Name1') %>% drop_na()
+
+
+df4 <- cbind(df3_drop1,df3_drop2)
+df4 <- df4 %>% relocate('Player Name1', 'Player State', 'Total Pts', 'Rating')
+
+```
+
+I left data manipulation of the Rating column as the last big task.  Using the separate() function I created two new rows to indicate PreRating and PostRating.  The PreRating column is ultimately the column I wanted in my last dataframe and did some clean up on it.  Using str_remove and regular expressions I removed non relevant data.  In some cases the rating value had a P with some numbers following.  I assumed this group of strings were errors and removed accordingly. 
+```{r}
+df5 <-df4 %>% mutate(df4, separate(df4,col = "Rating", into = c("PreRating", "PostRating"), sep="->"))
+
+
+df5 <- df5 %>% select(-'Rating')
+df5$'PreRating' <- str_remove(df5$'PreRating', "R: ")
+df5$'PreRating' <- str_remove(df5$'PreRating', "(P)(.*)$")
+
+df5$'PreRating' <- str_trim(df5$'PreRating', side = c("right"))
+```
+
+Final Product. Creating the CSV.
+```{r}
+df6 <- df5 %>% select(-"PostRating")
+df6
+write.csv(df6, "Project1_ER.csv", row.names = TRUE)
+```
+
+
+
+
+
+
