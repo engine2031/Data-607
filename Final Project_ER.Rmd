@@ -1,0 +1,209 @@
+---
+title: "Data 607 Final Project"
+author: "Euclides Rodriguez"
+date: "5/17/2021"
+output: html_document
+---
+## Introduction 
+It is often said that the best water in world can be drank in New York City. This is due to the fact that its water supply comes from the Catskill Mountains. A little unknown fact is that once the water makes its journey down to the city, it is sometimes retained in tanks of buildings it serves. There are various technical benefits to doing this, but one disadvantage is the maintenance requirements to keep water clean. NYC Open Data publishes data from various city agencies, one of which are the inspections for water tanks in the city. As a part of this project, I will perform data manipulations, statistical analysis and visualizations. In addition, I will attempt to apply the visualizations geospatially.  The link below is the reference where I will be obtaining my data set from. 
+
+
+https://data.cityofnewyork.us/Health/Rooftop-Drinking-Water-Tank-Inspection-Results/gjm4-k24g
+
+```{r, warning=FALSE, message=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Libraries 
+```{r, warning=FALSE, message=FALSE}
+library(tidyverse)
+library(tidymodels)
+library(dplyr)
+library(ggmap)
+library(sf)
+library(geosphere)
+
+
+```
+
+## Importing Data and Cleaning
+```{r, warning=FALSE, message=FALSE}
+df <- read_csv("https://raw.githubusercontent.com/engine2031/Data-607/main/Rooftop_Drinking_Water_Tank_Inspection_Results2.csv")
+
+#Reducing Columns to those I thought would be most useful.
+df1 <- df %>% select(-BIN, -HOUSE_NUM, -STREET_NAME, -INSPECTION_BY_FIRM, -INSPECTION_DATE)
+
+
+
+#Replacing Yes and Nos in column to be 0 and 1.  This will allow me to sum the quantity of failed text per inspection. 
+df1$SI_RESULT_SEDIMENT[df1$SI_RESULT_SEDIMENT == "N"] <- 0
+df1$SI_RESULT_SEDIMENT[df1$SI_RESULT_SEDIMENT == "A"] <- 1
+
+df1$SI_RESULT_BIOLOGICAL_GROWTH[df1$SI_RESULT_BIOLOGICAL_GROWTH == "N"] <- 0
+df1$SI_RESULT_BIOLOGICAL_GROWTH[df1$SI_RESULT_BIOLOGICAL_GROWTH == "A"] <- 1
+
+df1$SI_RESULT_DEBRIS_INSECTS[df1$SI_RESULT_DEBRIS_INSECTS == "N"] <- 0
+df1$SI_RESULT_DEBRIS_INSECTS[df1$SI_RESULT_DEBRIS_INSECTS == "A"] <- 1
+
+df1$SI_RESULT_RODENT_BIRD[df1$SI_RESULT_RODENT_BIRD == "N"] <- 0
+df1$SI_RESULT_RODENT_BIRD[df1$SI_RESULT_RODENT_BIRD == "A"] <- 1
+
+df1$COLIFORM[df1$COLIFORM == "A"] <- 0
+df1$COLIFORM[df1$COLIFORM == "P"] <- 1
+
+df1$ECOLI[df1$ECOLI == "A"] <- 0
+df1$ECOLI[df1$ECOLI == "P"] <- 1
+
+#Converting columns from character to numeric type 
+df1$SI_RESULT_SEDIMENT <- as.numeric(df1$SI_RESULT_SEDIMENT)
+df1$SI_RESULT_BIOLOGICAL_GROWTH <- as.numeric(df1$SI_RESULT_BIOLOGICAL_GROWTH)
+df1$SI_RESULT_DEBRIS_INSECTS <- as.numeric(df1$SI_RESULT_DEBRIS_INSECTS)
+df1$SI_RESULT_RODENT_BIRD <- as.numeric(df1$SI_RESULT_RODENT_BIRD)
+df1$COLIFORM <- as.numeric(df1$COLIFORM)
+df1$ECOLI <- as.numeric(df1$ECOLI)
+
+head(df1)
+
+
+```
+
+## Data Manipulation 
+```{r, warning=FALSE}
+#Summation of violation types and creation of new column 
+df2 <- df1 %>% mutate(Qty_Fail_Insp = SI_RESULT_SEDIMENT + 
+                 SI_RESULT_BIOLOGICAL_GROWTH +
+                 SI_RESULT_DEBRIS_INSECTS+
+                 SI_RESULT_RODENT_BIRD+
+                 COLIFORM+
+                 ECOLI)
+
+#Plot to understand the overall distribution of failed inspections.  Based on data bar plot it is seen that the majority of tanks did not have failed or corrective action required.   
+ggplot(data = df2, aes(x = Qty_Fail_Insp))+
+  geom_bar()
+
+#Filter for Inspections Greater than 0. Allows for better visualizations of quantity of tanks with failed inspections.  In addition after looking at a visualization of the quantity of failed inspections, it can be seen that the majority of tanks are in Manhattan.  For this reason the dataframe is further filter to be limited to Manhattan.  
+df2b <- df2 %>% filter(Qty_Fail_Insp > 0)%>% filter(BOROUGH == "MANHATTAN")
+
+
+ggplot(data = df2, aes(x = BOROUGH))+
+  geom_bar()
+
+ggplot(data = df2b, aes(x = Qty_Fail_Insp))+
+  geom_bar()
+
+```
+
+## Geospatial Data Visualization
+Two geospatial visualizations are provided.  The first indicated with blue dots on a Manhattan map identifies all of the locations where house tanks were inspected.  The second indicates building tank locations where non-structural related failed inspections occurred.     
+```{r, warning=FALSE, message=FALSE}
+nyc_map <- get_stamenmap(bbox = c(left = -74.05, bottom = 40.6977 , right = -73.89
+  , top = 40.8812), zoom = 13, maptype = "terrain")
+
+
+```
+
+
+```{r, warning=FALSE}
+ggmap(nyc_map) +
+  geom_point(data = df2, 
+             aes(x = LONGITUDE, y = LATITUDE), 
+             size = .7, colour = "blue") 
+```
+
+
+```{r, warning=FALSE}
+ggmap(nyc_map) +
+  geom_point(data = df2b, 
+             aes(x = LONGITUDE, y = LATITUDE), 
+             size = .7, colour = "red") 
+```
+
+
+## Water Tanks in Relation to Major NYC Transportation Hubs 
+Often when prospective tenants are looking for major office space to lease one of the major contributing factors in making the decision is the relation to major transportation hubs.  Closer proximity to these major transportation hubs provides employees with an easier when transferring from one of these locations.  Looking at the data visualizations below, it can be seen that the south street seaport station has the least amount of house tank locations with failed inspections within close proximity.     
+
+Abbreviations: 
+Grand Central Station = gct 
+Penn Station = pst 
+South Street Station = sst 
+Distance of Tanks from Transportation Hub = dist_xxx 
+
+```{r, warning=FALSE, message=FALSE}
+
+df3 <- df2 %>% mutate(gct_lat = 40.7527, gct_lon = -73.9772)%>%
+  mutate(pst_lat = 40.7610, pst_lon = -73.9903) %>%
+  mutate(sst_lat = 40.7016, sst_lon = -74.0124)
+  
+  
+df3 <- df3 %>% filter(BOROUGH == "MANHATTAN")
+
+df4 <- df3 %>% mutate(dist_gct = distHaversine(cbind(LONGITUDE, LATITUDE), cbind(gct_lon, gct_lat)))%>%
+  mutate(dist_pst = distHaversine(cbind(LONGITUDE, LATITUDE), cbind(pst_lon, pst_lat)))%>%
+  mutate(dist_sst = distHaversine(cbind(LONGITUDE, LATITUDE), cbind(sst_lon, sst_lat)))
+
+#Jitter Plot for density of failed inspection in relation to distance from Grand Central Terminal                              
+ggplot(data = df4, aes(x = dist_gct, y = Qty_Fail_Insp))+
+  geom_jitter()+ scale_x_log10()+ ylim(1,4)
+
+#Jitter Plot for density of failed inspection in relation to distance from Penn Station 
+ggplot(data = df4, aes(x = dist_pst, y = Qty_Fail_Insp))+
+  geom_jitter()+ scale_x_log10()+ ylim(1,4)
+
+#Jitter Plot for density of failed inspection in relation to distance from South Street Station 
+ggplot(data = df4, aes(x = dist_sst, y = Qty_Fail_Insp))+
+  geom_jitter(alpha = 0.4)+ scale_x_log10()+ ylim(1,4)
+
+
+```
+
+## Modeling 
+A liner regression model is applied to predict quantity of failed inspections based on zip code and distance to a major transportation hubs. After performing a linear model it is seen that this type of model is not appropriate.  The predictions column in tank_test_results did not match the actual failed inspections in any case.       
+```{r, warning=FALSE}
+
+df5 <- df4 %>% drop_na(Qty_Fail_Insp)%>% select(-BOROUGH, -TANK_NUM, -SI_RESULT_SEDIMENT, -SI_RESULT_BIOLOGICAL_GROWTH, SI_RESULT_DEBRIS_INSECTS, SI_RESULT_RODENT_BIRD, -SAMPLE_COLLECTED, -COLIFORM, -ECOLI, -MEET_STANDARDS, -NTA, -SI_RESULT_DEBRIS_INSECTS, -SI_RESULT_RODENT_BIRD, -gct_lat, -gct_lon, -pst_lat, -pst_lon, -sst_lat, -sst_lon, -BLOCK,-LOT, -LATITUDE, -LONGITUDE )
+
+df6 <- df5 %>% pivot_longer(dist_gct:dist_pst:dist_sst, 
+                            names_to = "hub", values_to = "distance", 
+                            values_drop_na = TRUE) %>%
+  mutate(distance = log10(distance))%>%
+  mutate_if(is.character, factor) 
+  
+df6$ZIP <- as.factor(df6$ZIP)
+
+set.seed(123)
+tank_split <- initial_split(df6, prop = .75, strata = Qty_Fail_Insp)
+
+tank_training <- tank_split %>%
+  training()
+
+tank_test <- tank_split %>%
+  testing()
+
+lm_model <- linear_reg() %>% 
+  set_engine('lm') %>% 
+  set_mode('regression')
+
+
+lm_fit <- lm_model %>% 
+  fit(Qty_Fail_Insp ~ ZIP+ hub + distance, data = df6)
+
+##tidy(lm_fit)
+
+Insp_Pred <- lm_fit %>% predict(new_data = tank_test)
+
+tank_test_results <- tank_test %>% 
+  select(ZIP, hub, distance, Qty_Fail_Insp)%>% 
+  bind_cols(Insp_Pred)
+
+tank_test_results
+```
+
+
+
+## References
+1. Robin Love Lace, Geocomputation with R 
+2. Lisa Lendway - Statistic & Data Science, https://www.youtube.com/watch?v=2k8O-Y_uiRU 
+3. stackoverflow, https://stackoverflow.com/questions/49532911/calculate-distance-longitude-latitude-of-multiple-in-dataframe-r 
+
+
+
